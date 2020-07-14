@@ -1,16 +1,38 @@
 use std::io::{self, Write};
 use std::str;
 
+// Begin of backporting of SplitAsciiWhitespace (I don't know what I'm writting here) for CodeJam
+// CodeJam 2020 uses rustc 1.24.1
+type SplitAsciiWhitespace = std::iter::Map<std::iter::Filter<std::slice::Split<'static, u8, for<'r> fn(&'r u8) -> bool>, for<'a, 'b> fn(&'a &'b [u8]) -> bool>, for<'a> fn(&'a [u8]) -> &'a str>;
+fn is_ascii_whitespace(byte: &u8) -> bool {
+    byte.is_ascii_whitespace()
+}
+fn bytes_is_not_empty<'a, 'b>(s: &'a &'b [u8]) -> bool {
+    !s.is_empty()
+}
+fn unsafe_bytes_to_str<'a>(bytes: &'a [u8]) -> &'a str {
+    // SAFETY: not safe
+    unsafe { std::str::from_utf8_unchecked(bytes) }
+}
+#[inline]
+pub fn split_ascii_whitespace(s: &str) -> SplitAsciiWhitespace {
+    let inner = s.as_bytes().split(is_ascii_whitespace as for<'r> fn(&'r u8) -> bool).filter(bytes_is_not_empty as for<'a, 'b> fn(&'a &'b [u8]) -> bool).map(unsafe_bytes_to_str as for<'a> fn(&'a [u8]) -> &'a str);
+    unsafe {
+        std::mem::transmute(inner)
+    }
+}
+// End of backporting of SplitAsciiWhitespace
+
 struct Scanner<R> {
     reader: R,
     buf_str: Vec<u8>,
-    buf_iter: str::SplitAsciiWhitespace<'static>
+    buf_iter: SplitAsciiWhitespace,
 }
 
 #[allow(dead_code)]
 impl<R: io::BufRead> Scanner<R> {
     fn new(reader: R) -> Self {
-        Self { reader, buf_str: Vec::new(), buf_iter: "".split_ascii_whitespace() }
+        Self { reader, buf_str: Vec::new(), buf_iter: split_ascii_whitespace("") }
     }
     fn next<T: str::FromStr>(&mut self) -> T {
         loop {
@@ -21,7 +43,7 @@ impl<R: io::BufRead> Scanner<R> {
             self.reader.read_until(b'\n', &mut self.buf_str).expect("Failed read");
             self.buf_iter = unsafe {
                 let slice = str::from_utf8_unchecked(&self.buf_str);
-                std::mem::transmute(slice.split_ascii_whitespace())
+                split_ascii_whitespace(slice)
             }
         }
     }
@@ -48,7 +70,7 @@ impl<R: io::BufRead> Scanner<R> {
             self.reader.read_until(b'\n', &mut self.buf_str).expect("Failed read");
             self.buf_iter = unsafe {
                 let slice = str::from_utf8_unchecked(&self.buf_str);
-                std::mem::transmute(slice.split_ascii_whitespace())
+                split_ascii_whitespace(slice)
             }
         }
     }
